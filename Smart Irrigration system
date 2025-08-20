@@ -80,3 +80,44 @@ void loop() {
   Blynk.run();
   timer.run();
 }
+#define manualSwitchPin D5  // Physical button
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(pumpPin, OUTPUT);
+  digitalWrite(pumpPin, LOW);
+
+  pinMode(manualSwitchPin, INPUT_PULLUP);  // Enable internal pull-up
+
+  dht.begin();
+  Blynk.begin(auth, ssid, pass);
+
+  timer.setInterval(1000L, sendSensorData);
+}
+
+void sendSensorData() {
+  // --- Soil Moisture ---
+  int moistureRaw = analogRead(sensorPin);
+  int moisturePercent = map(moistureRaw, 1023, 0, 0, 100);
+
+  bool autoPump = (moistureRaw < threshold);
+  
+  // Check both Blynk button and physical switch
+  bool manualPumpState = manualPump || (digitalRead(manualSwitchPin) == LOW);
+
+  bool finalPump = autoPump || manualPumpState;
+  digitalWrite(pumpPin, finalPump ? HIGH : LOW);
+
+  // Send data to Blynk
+  Blynk.virtualWrite(V0, moisturePercent);
+  Blynk.virtualWrite(V1, finalPump);
+
+  // --- DHT11 Sensor ---
+  float temp = dht.readTemperature();
+  float hum = dht.readHumidity();
+  if (!isnan(temp) && !isnan(hum)) {
+    Blynk.virtualWrite(V3, temp);
+    Blynk.virtualWrite(V4, hum);
+  }
+}
+
